@@ -115,8 +115,14 @@ fn port_list(config: &[(PortProperties, u8)]) -> Vec<PortProperties> {
 }
 macro_rules! decl_component_enum {
     ($ComponentEnum:ident: $($Component:ident),*$(,)?) => {
+        /// ComponentEnum is an enumeration that represents all supported digital logic components.
+        /// Each variant corresponds to a specific component type (e.g., And, Or, Not, Mux, etc.).
+        /// This enum implements the Component trait, allowing it to be used interchangeably with individual components
         pub enum $ComponentEnum {
-            $($Component($Component)),*
+            $(
+                /// Variants for each component type
+                $Component($Component)
+            ),*
         }
         impl Component for $ComponentEnum {
             fn ports(&self) -> Vec<PortProperties> {
