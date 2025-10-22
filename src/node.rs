@@ -1,23 +1,58 @@
+//! Digital Logic Components and Gates for simulation.
+//! 
+//! This module defines various digital logic components such as gates (AND, OR, NOT, etc.),
+//! multiplexers, demultiplexers, decoders, splitters, and registers as well as the
+//! traits and structures needed to represent and simulate their behavior.
+//! 
+//! ## The node module notably consists of:
+//! - **[`Component`]**: An interface for all digital logic components, defining methods for port configuration, initialization, and execution.
+//! - **[`PortType`] and [`PortProperties`]**: Enumerations and structures to define the types and properties of ports for components.
+//! - **[`PortUpdate`]**: A structure representing updates to port values during simulation.
+//! - **Digital Logic Components**: Implementations of basic logic components used to simulate digital circuits.
 use crate::bitarray::{BitArray, BitState};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
-pub enum PortType { Input, Output, Inout }
+
+/// PortType defines the type of port for a digital logic component.
+/// - `Input`: Port accepts incoming signals  
+/// - `Output`: Port produces outgoing signals  
+/// - `Inout`: Port can both accept and provide signals
+pub enum PortType {
+    /// Port accepts incoming signals
+    Input, 
+    /// Port provides outgoing signals
+    Output, 
+    /// Port can accept and provide signals
+    Inout 
+}
 impl PortType {
+    /// A function to check if the port type accepts input signals.
     pub fn accepts_input(self) -> bool {
         matches!(self, PortType::Input | PortType::Inout)
     }
+    /// A function to check if the port type provides outgoing signals.
     pub fn accepts_output(self) -> bool {
         matches!(self, PortType::Output | PortType::Inout)
     }
 }
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
+/// PortProperties defines the properties of a port for a digital logic component.
+/// - `ty`: Declares what type of port it is (Input, Output, Inout)
+/// - `bitsize`: Declares the size of the data the port works with in bits. 
 pub struct PortProperties {
+    /// Type of the port (Input, Output, Inout)
     pub ty: PortType,
+    /// Size of the data the port works with in bits
     pub bitsize: u8
 }
 
+/// PortUpdate is a data structure that represents an update to a port's value during simulation.
+/// - `index`: The index of the port that is being updated. I.e, in the port list, index of 0 is the first port.
+/// - `value`: Represents the new value that will be assigned to the port at the given index.
 pub struct PortUpdate {
+    /// Index of the port being updated
     pub index: usize,
+    /// New value to be assigned to the port
     pub value: BitArray
 }
 
