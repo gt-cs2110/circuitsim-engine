@@ -56,18 +56,40 @@ pub struct PortUpdate {
     pub value: BitArray
 }
 
+/// Component is a trait that defines an interface of functions for digital logic components.
+/// - `ports`: A function that returns a vector of all the port properties associated with the component.
+/// - `initialize`: A function that runs once when component is created to set up any initial state for function node passed in.
+/// - `run`: A function that applies the properties of component to modify state from a FunctionNode and returns a vector of PortUpdate representing changes to be made to the ports (state of Function Node).
 pub trait Component {
+    /// Function that returns a vector of all the port properties associated with the component.
     fn ports(&self) -> Vec<PortProperties>;
+    /// Function that runs once when component is created to set up any initial state for function node passed in.
     fn initialize(&self, _state: &mut [BitArray]) {}
     #[must_use]
+    /// Function that applies the properties of component to modify state from a FunctionNode and returns a vector of PortUpdate representing changes to be made to the ports (state of Function Node).
+    /// Must use the output of this function to ensure correct simulation behavior.
     fn run(&self, old_inp: &[BitArray], inp: &[BitArray]) -> Vec<PortUpdate>;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+/// Sensitivity define the triggering conditions for components based on signal changes.
+/// - `Anyedge`: Triggered on any change in signal (rising or falling edge)
+/// - `Posedge`: Triggered on rising edge (low to high clock transition)
+/// - `Negedge`: Triggered on falling edge (high to low clock transition)
+/// - `DontCare`: Never triggers
 pub enum Sensitivity {
-    Anyedge, Posedge, Negedge, DontCare
+    /// Triggered on any change in signal (rising or falling edge)
+    Anyedge, 
+    /// Triggered on rising edge (low to high clock transition)
+    Posedge, 
+    /// Triggered on falling edge (high to low clock transition)
+    Negedge, 
+    /// Never triggers
+    DontCare
 }
 impl Sensitivity {
+    /// A function that determines if an event has occurred based on the sensitivity type and the old and new signal states.
+    /// For example, for `Posedge`, it checks if the old state was all low and the new state is all high.
     pub fn activated(self, old: BitArray, new: BitArray) -> bool {
         assert_eq!(old.len(), new.len(), "Bit length should be the same");
         match self {
@@ -77,6 +99,8 @@ impl Sensitivity {
             Sensitivity::DontCare => false,
         }
     }
+    /// A function that checks if any of the corresponding pairs of old and new signal states have triggered an event based on the sensitivity type.
+    /// I.e for a register, we check if any of the signals in the input ports have changed to trigger an event based on the sensitivity type.
     pub fn any_activated(self, old: &[BitArray], new: &[BitArray]) -> bool {
         assert_eq!(old.len(), new.len(), "Array size should be the same");
         std::iter::zip(old, new)
