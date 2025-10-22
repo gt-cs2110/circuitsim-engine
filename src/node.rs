@@ -160,9 +160,15 @@ decl_component_enum!(ComponentFn:
     And, Or, Xor, Nand, Nor, Xnor, Not, TriState, 
     Mux, Demux, Decoder, Splitter, Register
 );
-
+/// Minimum number of inputs for multi-input logic gates (not including NOT gate).
 pub const MIN_GATE_INPUTS: u8 = 2;
+/// Maximum number of inputs for multi-input logic gates (not including NOT gate).
 pub const MAX_GATE_INPUTS: u8 = 64;
+
+
+/// GateProperties is a data structure that holds properties for multi-input logic gates.
+/// - `bitsize`: The size of the data the gate works with in bits.
+/// - `n_inputs`: The number of input ports the gate has.
 pub struct GateProperties {
     bitsize: u8,
     n_inputs: u8
@@ -171,10 +177,13 @@ pub struct GateProperties {
 macro_rules! gates {
     ($($Id:ident: $f:expr),*$(,)?) => {
         $(
+            /// A data structure defined by an identifier representing a multi-input logic gate (e.g., And, Or, Xor, etc.).
+            /// - `props`: An instance of GateProperties that holds the configuration for the gate, including bitsize and number of inputs.
             pub struct $Id {
                 props: GateProperties
             }
             impl $Id {
+                /// A constructor function for creating a new instance of the gate with specified bitsize and number of inputs.
                 pub fn new(mut bitsize: u8, mut n_inputs: u8) -> Self {
                     bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
                     n_inputs = n_inputs.clamp(MIN_GATE_INPUTS, MAX_GATE_INPUTS);
@@ -211,14 +220,19 @@ gates! {
     Nor:  |a, b| !(a | b),
     Xnor: |a, b| !(a ^ b),
 }
-
+/// A structure that holds properties for buffer and NOT gates.
+/// - `bitsize`: The size of the data the NOT gate / Buffer works with in bits.
 pub struct BufNotProperties {
     bitsize: u8
 }
+
+/// A structure that represents a NOT gate component.
+/// - `props`: An instance of BufNotProperties that holds the configuration for the NOT gate, including bitsize.
 pub struct Not {
     props: BufNotProperties
 }
 impl Not {
+    ///  A constructor function for createing a new instance of the NOT gate with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -239,10 +253,13 @@ impl Component for Not {
     }
 }
 
+/// A structure that represents a Tri-State Buffer component.
+/// - `props`: An instance of BufNotProperties that holds the configuration for the Tri-State Buffer, including bitsize.
 pub struct TriState {
     props: BufNotProperties
 }
 impl TriState {
+    /// A constructor function for creating a new instance of the Tri-State Buffer with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -270,17 +287,26 @@ impl Component for TriState {
         vec![PortUpdate { index: 2, value: result }]
     }
 }
-
+/// Minimum number of selector bits for Mux/Demux/Decoder.
 pub const MIN_SELSIZE: u8 = 1;
+/// Maximum number of selector bits for Mux/Demux/Decoder.
 pub const MAX_SELSIZE: u8 = 8;
+
+/// A structure that holds properties for Mux and Demux components.
+/// - `bitsize`: The size of the data the Mux/Demux works with
+/// - `selsize`: The number of selector bits for Mux/Demux
 pub struct MuxProperties {
     bitsize: u8,
     selsize: u8
 }
+
+/// A structure that represents a Multiplexer (Mux) component.
+/// - `props`: An instance of MuxProperties that holds the configuration for the Mux, including bitsize and selector size.
 pub struct Mux {
     props: MuxProperties
 }
 impl Mux {
+    /// A constructor function for creating a new instance of the Mux with specified bitsize and selector size.
     pub fn new(mut bitsize: u8, mut selsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
@@ -308,10 +334,14 @@ impl Component for Mux {
         vec![PortUpdate { index: (1 << self.props.selsize) + 1, value: result }]
     }
 }
+
+/// A structure that represents a Demultiplexer (Demux) component.
+/// - `props`: An instance of MuxProperties that holds the configuration for the Demux, including bitsize and selector size.
 pub struct Demux {
     props: MuxProperties
 }
 impl Demux {
+    /// A constructor function for creating a new instance of the Demux with specified bitsize and selector size.
     pub fn new(mut bitsize: u8, mut selsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
@@ -347,13 +377,19 @@ impl Component for Demux {
     }
 }
 
+/// A structure that holds properties for Decoder components.
+/// - `selsize`: The number of selector bits for the Decoder.
 pub struct DecoderProperties {
     selsize: u8
 }
+
+/// A structure that represents a Decoder component.
+/// - `props`: An instance of DecoderProperties that holds the configuration for the Decoder, including selector size.
 pub struct Decoder {
     props: DecoderProperties
 }
 impl Decoder {
+    /// A constructor function for creating a new instance of the Decoder with specified selector size.
     pub fn new(mut selsize: u8) -> Self {
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
         Self { props: DecoderProperties { selsize }}
@@ -387,10 +423,13 @@ impl Component for Decoder {
     }
 }
 
+/// A structure that represents a Splitter component.
+/// - `props`: An instance of BufNotProperties that holds the configuration for the Splitter, including bitsize.
 pub struct Splitter {
     props: BufNotProperties
 }
 impl Splitter {
+    /// A constructor function for creating a new instance of the Splitter with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize } }
@@ -422,10 +461,13 @@ impl Component for Splitter {
     }
 }
 
+/// A structure that represents a Register component.
+/// - `props`: An instance of BufNotProperties that holds the configuration for the Register, including bitsize.
 pub struct Register {
     props: BufNotProperties
 }
 impl Register {
+    /// A constructor function for creating a new instance of the Register with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize } }
