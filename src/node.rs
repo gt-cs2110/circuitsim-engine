@@ -49,6 +49,7 @@ pub struct PortProperties {
 /// PortUpdate is a data structure that represents an update to a port's value during simulation.
 /// - `index`: The index of the port that is being updated. I.e, in the port list, index of 0 is the first port.
 /// - `value`: Represents the new value that will be assigned to the port at the given index.
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PortUpdate {
     /// Index of the port being updated
     pub index: usize,
@@ -497,3 +498,335 @@ impl Component for Register {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use crate::bitarray::{BitArray, BitState};
+
+    mod gates {
+        use super::*;
+        #[test]
+        fn test_and_gate() {
+            let gate = And::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // Checks if we have only one update. Should be 1 for logic gates
+            // Checks if port 2, the output port for two input gates was updated
+            // 1 & 0 = 0;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::Low) }],
+                "Expected a single update with index=2 and value=0 (1 & 0 = 0)"
+            );
+        }
+
+        #[test]
+        fn test_and_gate_multi_bit() {
+            let gate = And::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1100").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // 1011 & 1100 = 1000;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("1000").unwrap() }],
+                "Expected a single update with index=2 and value=1000 (1011 & 1100 = 1000)"
+            );
+        }
+
+        #[test]
+        fn test_and_gate_3input_4bit() {
+            let gate = And::new(4, 3); // 3 inputs, 4-bit each
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1100").unwrap();
+            let in_c = BitArray::from_str("1110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // 1011 & 1100 & 1110 = 1000;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("1000").unwrap() }],
+                "Expected a single update with index=3 and value=1000 (1011 & 1100 & 1110 = 1000)"
+            );
+        }
+
+        #[test]
+        fn test_or_gate() {
+            let gate = Or::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // 1 | 0 = 1;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::High) }],
+                "Expected a single update with index=2 and value=1 (1 | 0 = 1)"
+            );
+        }
+
+        #[test]
+        fn test_or_gate_multi_bit() {
+            let gate = Or::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1100").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // 1011 | 1100 = 1111;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("1111").unwrap() }],
+                "Expected a single update with index=2 and value=1111 (1011 | 1100 = 1111)"
+            );
+        }
+
+        #[test]
+        fn test_or_gate_3input_4bit() {
+            let gate = Or::new(4, 3);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1100").unwrap();
+            let in_c = BitArray::from_str("0110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // 1011 | 1100 | 0110 = 1111;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("1111").unwrap() }],
+                "Expected a single update with index=3 and value=1111 (1011 | 1100 | 0110 = 1111)"
+            );
+        }
+
+        #[test]
+        fn test_xor_gate() {
+            let gate = Xor::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // 1 ^ 0 = 1;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::High) }],
+                "Expected a single update with index=2 and value=1 (1 ^ 0 = 1)"
+            );
+        }
+
+        #[test]
+        fn test_xor_gate_multi_bit() {
+            let gate = Xor::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            // 1011 ^ 1101 = 0110;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("0110").unwrap() }],
+                "Expected a single update with index=2 and value=0110 (1011 ^ 1101 = 0110)"
+            );
+        }
+
+        #[test]
+        fn test_xor_gate_3input_4bit() {
+            let gate = Xor::new(4, 3);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+            let in_c = BitArray::from_str("0110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // 1011 ^ 1101 ^ 0110 = 0000;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("0000").unwrap() }],
+                "Expected a single update with index=3 and value=0000 (1011 ^ 1101 ^ 0110 = 0000)"
+            );
+        }
+
+        #[test]
+        fn test_nand_gate() {
+            let gate = Nand::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::High) }],
+                "Expected a single update with index=2 and value=1 (!(1 & 0) = 1)"
+            );
+        }
+
+        #[test]
+        fn test_nand_gate_multi_bit() {
+            let gate = Nand::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("0110").unwrap() }],
+                "Expected a single update with index=2 and value=0110 (!(1011 & 1101) = 0110)"
+            );
+        }
+
+        #[test]
+        fn test_nand_gate_3input_4bit() {
+            let gate = Nand::new(4, 3);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+            let in_c = BitArray::from_str("1110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // !(1011 & 1101 & 1110) = 0111;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("0111").unwrap() }],
+                "Expected a single update with index=3 and value=0111 (!(1011 & 1101 & 1110) = 0111)"
+            );
+        }
+
+        #[test]
+        fn test_nor_gate() {
+            let gate = Nor::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::Low) }],
+                "Expected a single update with index=2 and value=0 (!(1 | 0) = 0)"
+            );
+        }
+
+        #[test]
+        fn test_nor_gate_multi_bit() {
+            let gate = Nor::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("0000").unwrap() }],
+                "Expected a single update with index=2 and value=0000 (!(1011 | 1101) = 0000)"
+            );
+        }
+
+        #[test]
+        fn test_nor_gate_3input_4bit() {
+            let gate = Nor::new(4, 3);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+            let in_c = BitArray::from_str("0110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // !(1011 | 1101 | 0110) = 0000;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("0000").unwrap() }],
+                "Expected a single update with index=3 and value=0000 (!(1011 | 1101 | 0110) = 0000)"
+            );
+        }
+
+        #[test]
+        fn test_xnor_gate() {
+            let gate = Xnor::new(1, 2);
+            let in_a = BitArray::from(BitState::Low);
+            let in_b = BitArray::from(BitState::High);
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from(BitState::Low) }],
+                "Expected a single update with index=2 and value=0 (!(1 ^ 0) = 0)"
+            );
+        }
+
+        #[test]
+        fn test_xnor_gate_multi_bit() {
+            let gate = Xnor::new(4, 2);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 2, value: BitArray::from_str("1001").unwrap() }],
+                "Expected a single update with index=2 and value=1001 (!(1011 ^ 1101) = 1001)"
+            );
+        }
+
+        #[test]
+        fn test_xnor_gate_3input_4bit() {
+            let gate = Xnor::new(4, 3);
+            let in_a = BitArray::from_str("1011").unwrap();
+            let in_b = BitArray::from_str("1101").unwrap();
+            let in_c = BitArray::from_str("0110").unwrap();
+
+            let updates = gate.run(&[], &[in_a, in_b, in_c]);
+
+            // !(1011 ^ 1101 ^ 0110) = 1111;
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 3, value: BitArray::from_str("1111").unwrap() }],
+                "Expected a single update with index=3 and value=1111 (!(1011 ^ 1101 ^ 0110) = 1111)"
+            );
+        }
+
+        #[test]
+        fn test_not_gate() {
+            let gate = Not::new(1);
+            let in_a = BitArray::from(BitState::Low);
+
+            let updates = gate.run(&[], &[in_a]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 1, value: BitArray::from(BitState::High) }],
+                "Expected a single update with index=1 and value=1 (!0 = 1)"
+            );
+        }
+
+        #[test]
+        fn test_not_gate_multi_bit() {
+            let gate = Not::new(4);
+            let in_a = BitArray::from_str("1011").unwrap();
+
+            let updates = gate.run(&[], &[in_a]);
+
+            assert_eq!(
+                updates,
+                vec![PortUpdate { index: 1, value: BitArray::from_str("0100").unwrap() }],
+                "Expected a single update with index=1 and value=0100 (!1011 = 0100)"
+            );
+        }
+    }
+
+
+
+}
+
