@@ -270,7 +270,7 @@ pub struct Not {
     props: BufNotProperties
 }
 impl Not {
-    /// Creating a new instance of the NOT gate with specified bitsize.
+    /// Creates a new instance of the NOT gate with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -296,7 +296,7 @@ pub struct TriState {
     props: BufNotProperties
 }
 impl TriState {
-    /// Creating a new instance of the tri-state buffer with specified bitsize.
+    /// Creates a new instance of the tri-state buffer with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -461,7 +461,7 @@ pub struct Splitter {
     props: BufNotProperties
 }
 impl Splitter {
-    /// A constructor function for creating a new instance of the Splitter with specified bitsize.
+    /// Creates a new instance of the Splitter with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize } }
