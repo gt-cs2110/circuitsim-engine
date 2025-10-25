@@ -13,84 +13,105 @@ use crate::bitarray::{BitArray, BitState};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
 
-/// PortType defines the type of port for a digital logic component.
-/// - `Input`: Port accepts incoming signals  
-/// - `Output`: Port produces outgoing signals  
-/// - `Inout`: Port can both accept and provide signals
+/// The type of ports available for a digital logic component.
 pub enum PortType {
-    /// Port accepts incoming signals
+    /// A port which accepts incoming signals.
     Input, 
-    /// Port provides outgoing signals
+    /// A port which provides outgoing signals.
     Output, 
-    /// Port can accept and provide signals
+    /// A port which can accept and provide signals.
     Inout 
 }
 impl PortType {
-    /// A function to check if the port type accepts input signals.
+    /// Checks if the port type accepts input signals.
     pub fn accepts_input(self) -> bool {
         matches!(self, PortType::Input | PortType::Inout)
     }
-    /// A function to check if the port type provides outgoing signals.
+
+    /// Checks if the port type provides outgoing signals.
     pub fn accepts_output(self) -> bool {
         matches!(self, PortType::Output | PortType::Inout)
     }
 }
+/// The properties of a port for a digital logic component.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
-/// PortProperties defines the properties of a port for a digital logic component.
-/// - `ty`: Declares what type of port it is (Input, Output, Inout)
-/// - `bitsize`: Declares the size of the data the port works with in bits. 
 pub struct PortProperties {
-    /// Type of the port (Input, Output, Inout)
+    /// Type of the port.
     pub ty: PortType,
-    /// Size of the data the port works with in bits
+    /// Size of the data the port works with in bits.
     pub bitsize: u8
 }
 
-/// PortUpdate is a data structure that represents an update to a port's value during simulation.
-/// - `index`: The index of the port that is being updated. I.e, in the port list, index of 0 is the first port.
-/// - `value`: Represents the new value that will be assigned to the port at the given index.
+/// A struct representing an update to a port's value during simulation.
+/// 
+/// This struct should only be used to represent the update 
+/// of a [`Output`] or [`Inout`] port.
+/// 
+/// [`Output`]: PortType::Output
+/// [`Inout`]: PortType::Inout
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PortUpdate {
-    /// Index of the port being updated
+    /// Index of the port being updated.
+    /// 
+    /// For example, this is an index of 0 when referring
+    /// to the first port in a function's port list.
     pub index: usize,
-    /// New value to be assigned to the port
+    /// The new value to be assigned to the port at the given index.
     pub value: BitArray
 }
 
-/// Component is a trait that defines an interface of functions for digital logic components.
-/// - `ports`: A function that returns a vector of all the port properties associated with the component.
-/// - `initialize`: A function that runs once when component is created to set up any initial state for function node passed in.
-/// - `run`: A function that applies the properties of component to modify state from a FunctionNode and returns a vector of PortUpdate representing changes to be made to the ports (state of Function Node).
+/// The interface defining how a digital logic component operates.
 pub trait Component {
-    /// Function that returns a vector of all the port properties associated with the component.
+    /// Returns the vector holding the properties of all ports associated with the component.
+    /// 
+    /// This is called only once during initialization.
+    /// It is assumed that the result of this function will not change when called multiple times.
     fn ports(&self) -> Vec<PortProperties>;
-    /// Function that runs once when component is created to set up any initial state for function node passed in.
+    
+    /// Initializes the state (e.g., internal state and port state) of the component.
+    /// 
+    /// If not specified, by default, the initial port state is set to all floating.
     fn initialize(&self, _state: &mut [BitArray]) {}
+    
+    /// "Runs" the component's function on a set of inputs, outputting a vector of updated ports
+    /// after the function is applied.
+    /// 
+    /// This function is called after an update is propagated to this component.
+    /// When that occurs, this function is called with the original state and updated state
+    /// of this component's ports.
+    /// 
+    /// This function may also panic if `old_inp` and `inp` do not match the port properties
+    /// specified by [`Component::ports`].
     #[must_use]
-    /// Function that applies the properties of component to modify state from a FunctionNode and returns a vector of PortUpdate representing changes to be made to the ports (state of Function Node).
-    /// Must use the output of this function to ensure correct simulation behavior.
     fn run(&self, old_inp: &[BitArray], inp: &[BitArray]) -> Vec<PortUpdate>;
 }
 
+
+/// The triggering conditions for components based on a signal change.
 #[derive(Clone, Copy, PartialEq, Eq)]
-/// Sensitivity define the triggering conditions for components based on signal changes.
-/// - `Anyedge`: Triggered on any change in signal (rising or falling edge)
-/// - `Posedge`: Triggered on rising edge (low to high clock transition)
-/// - `Negedge`: Triggered on falling edge (high to low clock transition)
-/// - `DontCare`: Never triggers
 pub enum Sensitivity {
-    /// Triggered on any change in signal (rising or falling edge)
+    /// Triggered on any change in a signal (rising or falling edge).
     Anyedge, 
-    /// Triggered on rising edge (low to high clock transition)
+    /// Triggered on rising edge of a signal (low to high clock transition).
     Posedge, 
-    /// Triggered on falling edge (high to low clock transition)
+    /// Triggered on falling edge of a signal (high to low clock transition).
     Negedge, 
-    /// Never triggers
+    /// Does not update in response to a signal update.
     DontCare
 }
 impl Sensitivity {
-    /// A function that determines if an event has occurred based on the sensitivity type and the old and new signal states.
-    /// For example, for `Posedge`, it checks if the old state was all low and the new state is all high.
+    /// Checks whether the change between the old and new value
+    /// would create a trigger based on this sensitivity.
+    /// 
+    /// ```
+    /// use circuitsim_engine::bitarray::{BitState, BitArray};
+    /// use circuitsim_engine::node::Sensitivity;
+    /// 
+    /// let lo = BitArray::from(BitState::Low);
+    /// let hi = BitArray::from(BitState::High);
+    /// assert!(Sensitivity::Posedge.activated(lo, hi));
+    /// assert!(Sensitivity::Negedge.activated(hi, lo));
+    /// ```
     pub fn activated(self, old: BitArray, new: BitArray) -> bool {
         assert_eq!(old.len(), new.len(), "Bit length should be the same");
         match self {
@@ -100,8 +121,20 @@ impl Sensitivity {
             Sensitivity::DontCare => false,
         }
     }
-    /// A function that checks if any of the corresponding pairs of old and new signal states have triggered an event based on the sensitivity type.
-    /// I.e for a register, we check if any of the signals in the input ports have changed to trigger an event based on the sensitivity type.
+
+    /// Checks whether the changes in values (as specified by the `old` and `new` slices)
+    /// would create a trigger based on this sensitivity.
+    /// 
+    /// ```
+    /// use circuitsim_engine::bitarray::{BitState, BitArray};
+    /// use circuitsim_engine::node::Sensitivity;
+    /// 
+    /// let lo = BitArray::from(BitState::Low);
+    /// let hi = BitArray::from(BitState::High);
+    /// assert!(Sensitivity::Posedge.any_activated(&[lo, lo, lo, lo], &[lo, hi, lo, lo]));
+    /// ```
+    /// 
+    /// This function panics if `old.len() != new.len()`.
     pub fn any_activated(self, old: &[BitArray], new: &[BitArray]) -> bool {
         assert_eq!(old.len(), new.len(), "Array size should be the same");
         std::iter::zip(old, new)
@@ -109,6 +142,7 @@ impl Sensitivity {
     }
 }
 
+/// Helper function to more easily define port lists (for [`Component::ports`]).
 fn port_list(config: &[(PortProperties, u8)]) -> Vec<PortProperties> {
     config.iter()
         .flat_map(|&(props, ct)| std::iter::repeat_n(props, usize::from(ct)))
@@ -116,12 +150,10 @@ fn port_list(config: &[(PortProperties, u8)]) -> Vec<PortProperties> {
 }
 macro_rules! decl_component_enum {
     ($ComponentEnum:ident: $($Component:ident),*$(,)?) => {
-        /// ComponentEnum is an enumeration that represents all supported digital logic components.
-        /// Each variant corresponds to a specific component type (e.g., And, Or, Not, Mux, etc.).
-        /// This enum implements the Component trait, allowing it to be used interchangeably with individual components
+        /// An enum that represents all supported digital logic components.
         pub enum $ComponentEnum {
             $(
-                /// Variants for each component type
+                #[allow(missing_docs)]
                 $Component($Component)
             ),*
         }
@@ -161,30 +193,29 @@ decl_component_enum!(ComponentFn:
     And, Or, Xor, Nand, Nor, Xnor, Not, TriState, 
     Mux, Demux, Decoder, Splitter, Register
 );
-/// Minimum number of inputs for multi-input logic gates (not including NOT gate).
+/// Minimum number of inputs for multi-input logic gates.
 pub const MIN_GATE_INPUTS: u8 = 2;
-/// Maximum number of inputs for multi-input logic gates (not including NOT gate).
+/// Maximum number of inputs for multi-input logic gates.
 pub const MAX_GATE_INPUTS: u8 = 64;
 
 
-/// GateProperties is a data structure that holds properties for multi-input logic gates.
-/// - `bitsize`: The size of the data the gate works with in bits.
-/// - `n_inputs`: The number of input ports the gate has.
+/// The properties for multi-input logic gates.
 pub struct GateProperties {
-    bitsize: u8,
-    n_inputs: u8
+    /// The size of the data the gate works with in bits.
+    pub bitsize: u8,
+    /// The number of input ports the gate has.
+    pub n_inputs: u8
 }
 
 macro_rules! gates {
-    ($($Id:ident: $f:expr),*$(,)?) => {
+    ($($(#[$m:meta])? $Id:ident: $f:expr),*$(,)?) => {
         $(
-            /// A data structure defined by an identifier representing a multi-input logic gate (e.g., And, Or, Xor, etc.).
-            /// - `props`: An instance of GateProperties that holds the configuration for the gate, including bitsize and number of inputs.
+            $(#[$m])?
             pub struct $Id {
                 props: GateProperties
             }
             impl $Id {
-                /// A constructor function for creating a new instance of the gate with specified bitsize and number of inputs.
+                /// Creates a new instance of the gate with specified bitsize and number of inputs.
                 pub fn new(mut bitsize: u8, mut n_inputs: u8) -> Self {
                     bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
                     n_inputs = n_inputs.clamp(MIN_GATE_INPUTS, MAX_GATE_INPUTS);
@@ -214,26 +245,32 @@ macro_rules! gates {
 }
 
 gates! {
+    /// An AND gate component.
     And:  |a, b| a & b,
+    /// An OR gate component.
     Or:   |a, b| a | b,
+    /// An XOR gate component.
     Xor:  |a, b| a ^ b,
+    /// A NAND gate component.
     Nand: |a, b| !(a & b),
+    /// A NOR gate component.
     Nor:  |a, b| !(a | b),
+    /// A XNOR gate component.
     Xnor: |a, b| !(a ^ b),
 }
+
 /// A structure that holds properties for buffer and NOT gates.
-/// - `bitsize`: The size of the data the NOT gate / Buffer works with in bits.
 pub struct BufNotProperties {
-    bitsize: u8
+    /// The size of the data the gate works with in bits.
+    pub bitsize: u8
 }
 
-/// A structure that represents a NOT gate component.
-/// - `props`: An instance of BufNotProperties that holds the configuration for the NOT gate, including bitsize.
+/// A NOT gate component.
 pub struct Not {
     props: BufNotProperties
 }
 impl Not {
-    ///  A constructor function for createing a new instance of the NOT gate with specified bitsize.
+    /// Creating a new instance of the NOT gate with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -254,13 +291,12 @@ impl Component for Not {
     }
 }
 
-/// A structure that represents a Tri-State Buffer component.
-/// - `props`: An instance of BufNotProperties that holds the configuration for the Tri-State Buffer, including bitsize.
+/// A tri-state buffer component.
 pub struct TriState {
     props: BufNotProperties
 }
 impl TriState {
-    /// A constructor function for creating a new instance of the Tri-State Buffer with specified bitsize.
+    /// Creating a new instance of the tri-state buffer with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize }}
@@ -294,20 +330,19 @@ pub const MIN_SELSIZE: u8 = 1;
 pub const MAX_SELSIZE: u8 = 8;
 
 /// A structure that holds properties for Mux and Demux components.
-/// - `bitsize`: The size of the data the Mux/Demux works with
-/// - `selsize`: The number of selector bits for Mux/Demux
 pub struct MuxProperties {
-    bitsize: u8,
-    selsize: u8
+    /// The size of the data the component works with
+    pub bitsize: u8,
+    /// The number of selector bits for component
+    pub selsize: u8
 }
 
-/// A structure that represents a Multiplexer (Mux) component.
-/// - `props`: An instance of MuxProperties that holds the configuration for the Mux, including bitsize and selector size.
+/// A multiplexer (mux) component.
 pub struct Mux {
     props: MuxProperties
 }
 impl Mux {
-    /// A constructor function for creating a new instance of the Mux with specified bitsize and selector size.
+    /// Creates a new instance of the Mux with specified bitsize and selector size.
     pub fn new(mut bitsize: u8, mut selsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
@@ -336,13 +371,12 @@ impl Component for Mux {
     }
 }
 
-/// A structure that represents a Demultiplexer (Demux) component.
-/// - `props`: An instance of MuxProperties that holds the configuration for the Demux, including bitsize and selector size.
+/// A demultiplexer (demux) component.
 pub struct Demux {
     props: MuxProperties
 }
 impl Demux {
-    /// A constructor function for creating a new instance of the Demux with specified bitsize and selector size.
+    /// Creates a new instance of the Demux with specified bitsize and selector size.
     pub fn new(mut bitsize: u8, mut selsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
@@ -378,19 +412,17 @@ impl Component for Demux {
     }
 }
 
-/// A structure that holds properties for Decoder components.
-/// - `selsize`: The number of selector bits for the Decoder.
+/// A structure that holds properties for decoder components.
 pub struct DecoderProperties {
     selsize: u8
 }
 
-/// A structure that represents a Decoder component.
-/// - `props`: An instance of DecoderProperties that holds the configuration for the Decoder, including selector size.
+/// A decoder component.
 pub struct Decoder {
     props: DecoderProperties
 }
 impl Decoder {
-    /// A constructor function for creating a new instance of the Decoder with specified selector size.
+    /// Creates a new instance of the Decoder with specified selector size.
     pub fn new(mut selsize: u8) -> Self {
         selsize = selsize.clamp(MIN_SELSIZE, MAX_SELSIZE);
         Self { props: DecoderProperties { selsize }}
@@ -424,8 +456,7 @@ impl Component for Decoder {
     }
 }
 
-/// A structure that represents a Splitter component.
-/// - `props`: An instance of BufNotProperties that holds the configuration for the Splitter, including bitsize.
+/// A splitter component.
 pub struct Splitter {
     props: BufNotProperties
 }
@@ -462,13 +493,12 @@ impl Component for Splitter {
     }
 }
 
-/// A structure that represents a Register component.
-/// - `props`: An instance of BufNotProperties that holds the configuration for the Register, including bitsize.
+/// A register component.
 pub struct Register {
     props: BufNotProperties
 }
 impl Register {
-    /// A constructor function for creating a new instance of the Register with specified bitsize.
+    /// Creates a new instance of the Register with specified bitsize.
     pub fn new(mut bitsize: u8) -> Self {
         bitsize = bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE);
         Self { props: BufNotProperties { bitsize } }
