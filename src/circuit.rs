@@ -1,4 +1,10 @@
-//! Circuit module used to create circuits/sub-circuits.
+//! Circuit module used to create circuits.
+//! ## Notably consists of:
+//! - **[`ValueNode`] and [`FunctionNode`]**: graph components that hold values (wires) and perform functions (gates), respectively
+//! - **[`Circuit`]**: Struct that encompasses an entire set of circuit components as its graph and state:
+//!   - **[`CircuitGraph`]**: structs that represent a circuit as a graph representation of its components
+//!   - **`CircuitState`**: current circuit's state with regard to updates/signal propagation and evaluation *(private)*
+ 
 
 mod state;
 
