@@ -522,11 +522,13 @@ impl Component for Register {
         state[4] = BitArray::repeat(BitState::Low, self.props.bitsize);
     }
     fn run(&self, old_inp: &[BitArray], inp: &[BitArray]) -> Vec<PortUpdate> {
-        if inp[3].all(BitState::High) {
+        if inp[3].all(BitState::High) { // reset
             vec![PortUpdate { index: 4, value: BitArray::repeat(BitState::Low, self.props.bitsize) }]
-        } else if Sensitivity::Posedge.activated(old_inp[2], inp[2]) && inp[1].all(BitState::High) {
+        } else if Sensitivity::Posedge.activated(old_inp[2], inp[2]) && inp[1].all(BitState::High) { // rising edge
             vec![PortUpdate { index: 4, value: inp[0] }]
-        } else {
+        } else if inp[4].all(BitState::Imped) { // Connected to a new (floating) output pin (dout)
+            vec![PortUpdate { index: 4, value: BitArray::repeat(BitState::Low, self.props.bitsize)}]
+        } else { // no change, no update
             vec![]
         }
     }

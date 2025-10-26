@@ -1,6 +1,11 @@
 #![warn(missing_docs)]
 //! Engine for CircuitSim.
-// TODO: Add actual doc comment above
+//! 
+//! ## Consists of:
+//! - `bitarray`: Module that dictates how individual bits, bit streams work, and converting abstract bit signals into booleans for easier use
+//! - `node`: Module that defines how individual circuit components behave (e.g. wires, gates, and registers), including their ports and behavior when updated (run) by a digital signal 
+//! - `circuit`: Module that defines how whole circuits are managed, in graph representation of values (input/output) and nodes (components)
+//! 
 
 pub mod bitarray;
 pub mod node;
@@ -371,7 +376,7 @@ mod tests {
             circuit.add_value_node(BitArray::from(BitState::Low)),
             circuit.add_value_node(BitArray::from(BitState::Low)),
             circuit.add_value_node(BitArray::from(BitState::Low)),
-            circuit.add_value_node(BitArray::repeat(BitState::Low, 8)), // TODO: this should be floating. on connect, it should update
+            circuit.add_value_node(BitArray::repeat(BitState::Imped, 8)), // TODO: this should be floating. on connect, it should update
         ];
         let reg = circuit.add_function_node(node::Register::new(8));
         circuit.connect_all(reg, &nodes);

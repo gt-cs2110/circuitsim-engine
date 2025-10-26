@@ -425,13 +425,17 @@ impl BitArray {
     /// - a join Z = a
     /// - anything else = X
     pub fn join(self, rhs: BitArray) -> BitArray {
-        // TODO: assert size
         // __ | 00 | 01 | 10 | 11
         // 00 | 11 | 11 | 00 | 11
         // 01 | 11 | 11 | 01 | 11
         // 10 | 00 | 01 | 10 | 11
         // 11 | 11 | 11 | 11 | 11
         let len = self.len();
+
+        if len != rhs.len {
+           return BitArray::unknown(len);
+        }
+
         let lz = self.is(BitState::Imped);
         let rz = rhs.is(BitState::Imped);
 

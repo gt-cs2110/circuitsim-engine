@@ -8,6 +8,7 @@ use std::ops::{Index, IndexMut};
 use slotmap::{new_key_type, SlotMap};
 
 use crate::bitarray::BitArray;
+use crate::bitarray::BitState;
 use crate::circuit::state::{index_mut, CircuitState, TriggerState, ValueState};
 use crate::node::{Component, ComponentFn, PortProperties, PortType, PortUpdate};
 
@@ -297,6 +298,8 @@ impl Circuit {
 
                             if occupied.is_none() {
                                 self.state[node].add_issue(ValueIssue::ShortCircuit);
+                            } else if result.all(BitState::Unk) {
+                                self.state[node].add_issue(ValueIssue::MismatchedBitsizes); // found poison returned from join call
                             }
                             result
                         },
@@ -329,7 +332,7 @@ impl Circuit {
                     .zip(&gate.port_props)
                     .zip(&mut state.ports);
                 for ((&port, props), port_value) in it {
-                    if matches!(props.ty, PortType::Output) { continue; }
+                    // if matches!(props.ty, PortType::Output) { continue; }
                     // Update inputs and inouts
                     // Replace any disconnected ports and mismatched bitsizes with floating
                     *port_value = port
