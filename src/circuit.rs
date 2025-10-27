@@ -253,6 +253,50 @@ impl Circuit {
         ports.iter().copied()
             .enumerate()
             .for_each(|(index, wire)| self.connect(wire, Port { gate, index }));
+
+        
+        let old_values = self.state.functions[&gate].ports.clone();
+        for (index, props) in self.graph.functions[gate].port_props.iter().enumerate() { // Update output ports only
+            if !matches!(props.ty, PortType::Output) {
+                continue;
+            }
+
+            let bitsize = props.bitsize;
+            
+            let inputs_iter = self.graph.functions[gate]
+                .links
+                .iter()
+                .filter_map(|opt_val| *opt_val)           
+                .filter(|&val_key| self.graph[val_key].bitsize == Some(bitsize))
+                .map(|val_key| self.state.value(val_key));
+
+            
+            let (new_value, _occupied) = inputs_iter.fold(
+                (BitArray::floating(bitsize), Some(0usize)),
+                |(array, m_occupied), current| (
+                    array.join(current),
+                    m_occupied
+                        .and_then(|occupied| current.short_circuits(occupied as u64))
+                        .map(|v| v as usize)
+                ),
+            );
+
+            if let Some(func_state) = self.state.functions.get_mut(&gate) {
+                func_state.ports[index] = new_value;
+            }
+        }
+
+        for PortUpdate { index, value } in self.graph[gate].func.run(&old_values, & self.state.functions[&gate].ports) {
+            debug_assert!(self.graph[gate].port_props[index].ty.accepts_output(), "Input port cannot be updated");
+            debug_assert_eq!(self.graph[gate].port_props[index].bitsize, value.len(), "Expected value to have matching bitsize");
+            if self.state[gate].ports[index] != value {
+                self.state[gate].ports[index] = value;
+                
+                if let Some(sink_idx) = self.graph[gate].links[index] {
+                    self.state.transient.triggers.insert(sink_idx, TriggerState { recalculate: true });
+                }
+            }
+        }    
     }
 
     /// Propagates an update through the circuit
@@ -338,7 +382,7 @@ impl Circuit {
                     .zip(&gate.port_props)
                     .zip(&mut state.ports);
                 for ((&port, props), port_value) in it {
-                    // if matches!(props.ty, PortType::Output) { continue; }
+                    if matches!(props.ty, PortType::Output) { continue; }
                     // Update inputs and inouts
                     // Replace any disconnected ports and mismatched bitsizes with floating
                     *port_value = port
