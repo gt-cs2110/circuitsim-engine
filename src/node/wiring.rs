@@ -1,4 +1,5 @@
-use crate::node::{BitArray, Component, PortProperties, PortType, PortUpdate, Sensitivity, port_list};
+use crate::bitarray::BitArray;
+use crate::node::{Component, PortProperties, PortType, PortUpdate, Sensitivity, port_list};
 
 /// An input.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
