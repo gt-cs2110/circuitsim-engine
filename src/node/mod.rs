@@ -228,6 +228,8 @@ decl_component_enum!(ComponentFn:
     Mux, Demux, Decoder, Splitter, Register
 );
 
+/// Test helper which initializes all of the ports a node should have,
+/// setting them all to floating.
 #[cfg(test)]
 fn floating_ports(properties: &[PortProperties]) -> Vec<BitArray> {
     use crate::bitarr;
