@@ -117,6 +117,11 @@ impl Circuit {
         &self.state
     }
 
+    /// Gets a reference to the circuit graph.
+    pub fn graph(&self) -> &CircuitGraph {
+        &self.graph
+    }
+
     /// Updates a ValueNode with the specified value, raising `Err` if bitsizes do not match.
     pub fn replace(&mut self, key: ValueKey, val: BitArray) -> Result<(), crate::bitarray::MismatchedBitsizes> {
         self.state[key].replace_value(val)
