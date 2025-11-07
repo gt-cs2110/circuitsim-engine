@@ -8,7 +8,7 @@
 //! representation and to serialize an upgraded V2 representation using
 //! serde/serde_json.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use slotmap::SecondaryMap;
@@ -18,18 +18,18 @@ use crate::circuit::{Circuit, graph::{FunctionKey, ValueKey}};
 /// Positional / visual information for a component.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionData {
-	pub x: i32,
-	pub y: i32,
+	pub x: u32,
+	pub y: u32,
 	/// Raw properties map that came with the legacy format (optional)
-	pub properties: Option<std::collections::BTreeMap<String, String>>,
+	pub properties: Option<HashMap<String, String>>,
 }
 
 /// A wire element (mesh) from the legacy format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WireMesh {
-	pub x: i32,
-	pub y: i32,
-	pub length: i32,
+	pub x: u32,
+	pub y: u32,
+	pub length: u32,
 	pub is_horizontal: bool,
 }
 
@@ -85,7 +85,7 @@ impl MiddleCircuit {
 		self.wire_pos
 			.entry(value)
 			.unwrap()
-			.or_insert_with(Vec::new)
+			.or_default()
 			.push(mesh);
 	}
 
@@ -207,10 +207,10 @@ impl MiddleCircuit {
 	/// Find components within a rectangular region.
 	pub fn find_components_in_region(
 		&self,
-		min_x: i32,
-		min_y: i32,
-		max_x: i32,
-		max_y: i32,
+		min_x: u32,
+		min_y: u32,
+		max_x: u32,
+		max_y: u32,
 	) -> Vec<(FunctionKey, &PositionData)> {
 		self.component_pos
 			.iter()
@@ -224,8 +224,8 @@ impl MiddleCircuit {
 	pub fn move_component(&mut self, key: FunctionKey, delta_x: i32, delta_y: i32) -> bool {
 		if let Some(pos) = self.component_pos.get(key) {
 			let new_pos = PositionData {
-				x: pos.x + delta_x,
-				y: pos.y + delta_y,
+				x: pos.x.saturating_add_signed(delta_x),
+				y: pos.y.saturating_add_signed(delta_y),
 				properties: pos.properties.clone(),
 			};
 			self.component_pos.insert(key, new_pos);
@@ -238,8 +238,8 @@ impl MiddleCircuit {
 	/// Move all components by a delta offset.
 	pub fn move_all_components(&mut self, delta_x: i32, delta_y: i32) {
 		for (_, pos) in self.component_pos.iter_mut() {
-			pos.x += delta_x;
-			pos.y += delta_y;
+			pos.x = pos.x.saturating_add_signed(delta_x);
+			pos.y = pos.y.saturating_add_signed(delta_y);
 		}
 	}
 
@@ -280,7 +280,7 @@ impl MiddleCircuit {
 			let mut new_pos = pos.clone();
 			new_pos
 				.properties
-				.get_or_insert_with(BTreeMap::new)
+				.get_or_insert_with(HashMap::new)
 				.insert(property, value);
 			self.component_pos.insert(key, new_pos);
 			true
@@ -303,7 +303,7 @@ impl MiddleCircuit {
 #[derive(Debug, Default)]
 pub struct MiddleEnd {
 	/// Map of circuit name to middle circuit.
-	pub circuits: BTreeMap<String, MiddleCircuit>,
+	pub circuits: HashMap<String, MiddleCircuit>,
 }
 
 impl MiddleEnd {
@@ -343,8 +343,10 @@ impl MiddleEnd {
 	}
 
 	/// Get all circuit names.
-	pub fn circuit_names(&self) -> Vec<&String> {
-		self.circuits.keys().collect()
+	pub fn circuit_names(&self) -> Vec<&str> {
+		self.circuits.keys()
+			.map(String::as_str)
+			.collect()
 	}
 
 	/// Rename a circuit.
@@ -409,10 +411,13 @@ impl MiddleEnd {
 #[derive(Debug, Serialize, Deserialize)]
 struct LegacyFile {
 	version: String,
-	globalBitSize: Option<u8>,
-	clockSpeed: Option<u64>,
+	#[serde(rename="globalBitSize")]
+	global_bitsize: Option<u8>,
+	#[serde(rename="clockSpeed")]
+	clock_speed: Option<u64>,
 	circuits: Vec<LegacyCircuit>,
-	revisionSignatures: Option<Vec<String>>,
+	#[serde(rename="revisionSignatures")]
+	revision_signatures: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -425,17 +430,18 @@ struct LegacyCircuit {
 #[derive(Debug, Serialize, Deserialize)]
 struct LegacyComponent {
 	name: String,
-	x: i32,
-	y: i32,
-	properties: std::collections::BTreeMap<String, String>,
+	x: u32,
+	y: u32,
+	properties: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LegacyWire {
-	x: i32,
-	y: i32,
-	length: i32,
-	isHorizontal: bool,
+	x: u32,
+	y: u32,
+	length: u32,
+	#[serde(rename="isHorizontal")]
+	is_horizontal: bool,
 }
 
 // -- V2 serialization types --
@@ -591,7 +597,7 @@ impl MiddleEnd {
 		for (name, mc) in &self.circuits {
 			// Build function and value index maps so we can reference indices
 			// consistently in the serialized output.
-			let mut fn_index_map = std::collections::BTreeMap::new();
+			let mut fn_index_map = HashMap::new();
 			let mut fns: Vec<FunctionSer> = Vec::new();
 
 			for (i, (k, f)) in mc.engine.graph().functions.iter().enumerate() {
@@ -623,7 +629,7 @@ impl MiddleEnd {
 				fns.push(FunctionSer { ty, port_bits, links });
 			}
 
-			let mut val_index_map = std::collections::BTreeMap::new();
+			let mut val_index_map = HashMap::new();
 			let mut vals: Vec<ValueSer> = Vec::new();
 			for (i, (k, v)) in mc.engine.graph().values.iter().enumerate() {
 				val_index_map.insert(k, i);

@@ -109,8 +109,8 @@ fn test_v2_circuit_structure() {
     let rs_latch = circuits.iter().find(|c| c.name == "RS Latch").expect("RS Latch not found");
     
     // Should have functions and values
-    assert!(rs_latch.functions.len() > 0, "Expected functions in RS Latch");
-    assert!(rs_latch.values.len() > 0, "Expected values in RS Latch");
+    assert!(!rs_latch.functions.is_empty(), "Expected functions in RS Latch");
+    assert!(!rs_latch.values.is_empty(), "Expected values in RS Latch");
     
     // Should have position data
     assert_eq!(rs_latch.component_pos.len(), 4, "Expected 4 component positions");
@@ -142,11 +142,9 @@ fn test_function_serialization() {
                 "Port bits and links should have same length");
             
             // Verify linked value indices are valid
-            for opt_val_idx in &func.links {
-                if let Some(val_idx) = opt_val_idx {
-                    assert!(*val_idx < circuit.values.len(), 
-                        "Invalid value index {} in function link", val_idx);
-                }
+            for &val_idx in func.links.iter().flatten() {
+                assert!(val_idx < circuit.values.len(), 
+                    "Invalid value index {val_idx} in function link");
             }
         }
     }
