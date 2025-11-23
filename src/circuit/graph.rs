@@ -148,7 +148,43 @@ impl CircuitGraph {
             self.recalculate_bitsize(node);
         }
     }
+
+    /// Joins a set of keys, merging all the ports into the specified `main` node.
+    pub fn join(&mut self, main: ValueKey, to_merge: &[ValueKey]) {
+        // TODO: Test cases
+
+        // Connect all to one value key:
+        for &k in to_merge {
+            // Take out the links from this node:
+            let links = std::mem::take(&mut self.values[k].links);
+
+            // Update all function ports to connect to the new node:
+            for &p in &links {
+                self.functions[p.gate].links[p.index].replace(main);
+            }
+            // Add these links to the new combined link:
+            self.values[main].links.extend(links);
+
+            // Remove key from graph
+            self.values.remove(k);
+        }
+        self.recalculate_bitsize(main);
+    }
+
+    /// Removes all ports in `off_ports` from `main`, attaching it into a new node.
+    pub fn split_off(&mut self, main: ValueKey, off_ports: &[FunctionPort]) -> ValueKey {
+        // TODO: test cases
+        let new_value = self.add_value();
+        for &port in off_ports {
+            if self.values[main].links.contains(&port) {
+                self.connect(new_value, port);
+            }
+        }
+
+        new_value
+    }
 }
+
 impl Index<ValueKey> for CircuitGraph {
     type Output = ValueNode;
 
