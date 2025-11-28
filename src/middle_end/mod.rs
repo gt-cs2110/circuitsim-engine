@@ -1,14 +1,19 @@
 use slotmap::{SecondaryMap, SlotMap, new_key_type};
 
-use crate::circuit::graph::FunctionKey;
+use crate::circuit::graph::{FunctionKey, FunctionPort};
 use crate::circuit::{CircuitForest, CircuitKey};
+use crate::middle_end::func::{ComponentBounds, PhysicalComponent, PhysicalComponentEnum};
 use crate::middle_end::wire::{Wire, WireSet};
 
 mod serialize;
 pub mod wire;
+pub mod func;
 
 type Axis = u32;
 type Coord = (Axis, Axis);
+
+type AxisDelta = i32;
+type CoordDelta = (AxisDelta, AxisDelta);
 
 new_key_type! {
     /// Key for UI components that are not part of component.
@@ -23,19 +28,42 @@ pub struct MiddleRepr {
 
 #[derive(Debug, Default)]
 pub struct CircuitArea {
-    components: SecondaryMap<FunctionKey, ComponentPos>,
+    components: SecondaryMap<FunctionKey, ComponentProps>,
     wires: WireSet,
-    ui_components: SlotMap<UIKey, ComponentPos>
+    ui_components: SlotMap<UIKey, ComponentProps>
 }
 
 #[derive(Debug, Default)]
-pub struct ComponentPos {
+pub struct ComponentProps {
     label: String,
-    x: Axis,
-    y: Axis
+    origin: Coord,
+    bounds: [Coord; 2],
+    ports: Vec<Coord>,
+}
+impl ComponentProps {
+    pub fn new(label: &str, origin: Coord, bounds: ComponentBounds) -> Option<Self> {
+        fn add(p: Coord, delta: CoordDelta) -> Option<Coord> {
+            p.0.checked_add_signed(delta.0)
+                .zip(p.1.checked_add_signed(delta.1))
+        }
+
+        let ComponentBounds { bounds: [b0, b1], ports } = bounds;
+        let bounds = [add(origin, b0)?, add(origin, b1)?];
+        let ports = ports.into_iter()
+            .map(|delta| add(origin, delta))
+            .collect::<Option<_>>()?;
+
+        Some(Self {
+            label: label.to_string(),
+            origin,
+            bounds,
+            ports
+        })
+    }
 }
 
 pub enum ReprEditErr {
+    CannotAddComponent,
     CannotRemoveWire,
     Todo
 }
@@ -47,6 +75,22 @@ impl MiddleRepr {
         }
     }
 
+    pub fn add_component(&mut self, ckey: CircuitKey, physical: PhysicalComponentEnum, pos: Coord) -> Result<(), ReprEditErr> {
+        let props = ComponentProps::new("", pos, physical.bounds())
+            .ok_or(ReprEditErr::CannotAddComponent)?;
+
+        if let Some(component) = physical.engine_component() {
+            // Is engine component:
+            let fkey = self.forest.circuit(ckey).add_function_node(component);
+            self.physical[ckey].components.insert(fkey, props);
+        } else {
+            // Is UI component:
+            self.physical[ckey].ui_components.insert(props);
+        }
+        
+        Ok(())
+    }
+    
     pub fn add_wire(&mut self, ckey: CircuitKey, w: Wire) -> Result<(), ReprEditErr> {
         // Add to wire set if it doesn't overlap with anything.
         // Cases:
@@ -74,7 +118,17 @@ impl MiddleRepr {
         match self.physical[ckey].wires.remove_wire(p, q) {
             Some(wire::RemoveWireResult::NoSplit(_)) => Ok(()),
             Some(wire::RemoveWireResult::Split(c, k, coords)) => {
-                let nk = self.forest.circuit(ckey).split(k, &[ todo!("get ports connected to mesh") ]);
+                // Get all ports associated with coordinates:
+                let ports: Vec<_> = self.physical[ckey].components.iter()
+                    .flat_map(|(gate, p)| {
+                        p.ports.iter()
+                            .enumerate()
+                            .filter(|&(_, p)| coords.contains(p))
+                            .map(move |(index, _)| (FunctionPort { gate, index }))
+                    }).collect();
+                
+                // Split off ports:
+                let nk = self.forest.circuit(ckey).split(k, &ports);
                 self.physical[ckey].wires.flood_fill(c, nk);
                 Ok(())
             },
