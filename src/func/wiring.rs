@@ -74,6 +74,11 @@ impl Constant {
     pub fn new(value: BitArray) -> Self {
         Self { value }
     }
+
+    /// Gets the value which this constant holds.
+    pub fn get_value(&self) -> BitArray {
+        self.value
+    }
 }
 impl Component for Constant {
     fn ports(&self, _: &CircuitGraphMap) -> Vec<PortProperties> {
@@ -103,6 +108,11 @@ impl Splitter {
             bitsize: bitsize.clamp(BitArray::MIN_BITSIZE, BitArray::MAX_BITSIZE)
         }
     }
+
+    /// Gets the bitsize of this component.
+    pub fn get_bitsize(&self) -> u8 {
+        self.bitsize
+    }
 }
 impl Component for Splitter {
     fn ports(&self, _: &CircuitGraphMap) -> Vec<PortProperties> {
@@ -110,7 +120,7 @@ impl Component for Splitter {
             // joined
             (PortProperties { ty: PortType::Inout, bitsize: self.bitsize }, 1),
             // split
-            (PortProperties { ty: PortType::Inout, bitsize: 1 }, self.bitsize),
+            (PortProperties { ty: PortType::Inout, bitsize: 1 }, usize::from(self.bitsize)),
         ])
     }
 
