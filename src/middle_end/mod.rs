@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-
 use slotmap::{SecondaryMap, SlotMap, new_key_type};
 
-use crate::circuit::graph::{FunctionKey, ValueKey};
+use crate::circuit::graph::FunctionKey;
 use crate::circuit::{CircuitForest, CircuitKey};
+use crate::middle_end::wire::{Wire, WireSet};
 
 mod serialize;
+pub mod wire;
 
 type Axis = u32;
 type Coord = (Axis, Axis);
@@ -24,7 +24,7 @@ pub struct MiddleRepr {
 #[derive(Debug, Default)]
 pub struct CircuitArea {
     components: SecondaryMap<FunctionKey, ComponentPos>,
-    wires: Wires,
+    wires: WireSet,
     ui_components: SlotMap<UIKey, ComponentPos>
 }
 
@@ -35,49 +35,8 @@ pub struct ComponentPos {
     y: Axis
 }
 
-#[derive(Debug, Default)]
-pub struct Wires {
-    wires: HashMap<Wire, ValueKey>
-}
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash, serde::Serialize, serde::Deserialize)]
-pub struct Wire {
-    pub x: Axis,
-    pub y: Axis,
-    pub length: Axis,
-    #[serde(rename = "isHorizontal")]
-    pub horizontal: bool
-}
-impl Wire {
-    /// The endpoints of the wire.
-    pub fn endpoints(&self) -> [Coord; 2] {
-        // FIXME: Handle overflow
-        match self.horizontal {
-            true  => [(self.x, self.y), (self.x + self.length, self.y)],
-            false => [(self.x, self.y), (self.x, self.y + self.length)],
-        }
-    }
-
-    /// Detect whether this wire includes the specified coordinate.
-    pub fn contains(&self, c: Coord) -> bool {
-        match self.horizontal {
-            true  => self.y == c.1 && self.x <= c.0 && c.0 <= self.x.saturating_add(self.length),
-            false => self.x == c.0 && self.y <= c.1 && c.1 <= self.y.saturating_add(self.length),
-        }
-    }
-
-    pub fn split(&self, c: Coord) -> Option<[Wire; 2]> {
-        self.contains(c).then(|| {
-            todo!()
-        })
-    }
-
-    pub fn join(&self, w: Wire) -> Option<Wire> {
-        // if both are horizontal & align on endpoint then join
-        todo!()
-    }
-}
-
 pub enum ReprEditErr {
+    CannotRemoveWire,
     Todo
 }
 impl MiddleRepr {
@@ -88,14 +47,38 @@ impl MiddleRepr {
         }
     }
 
-    pub fn add_wire(&mut self, w: Wire) -> Result<(), ReprEditErr> {
+    pub fn add_wire(&mut self, ckey: CircuitKey, w: Wire) -> Result<(), ReprEditErr> {
         // Add to wire set if it doesn't overlap with anything.
         // Cases:
         // - If a wire endpoint connects to the middle of a wire, the wire needs to be split (ValueKey is same)
         // - If a wire connects two wire meshes (e.g., two ValueKey sets), the two ValueKeys must be merged
-        todo!()
+        
+        // TODO: Check for wire landing in the middle
+        let [p, q] = w.endpoints();
+
+        let result = self.physical[ckey].wires.add_wire(p, q, || self.forest.circuit(ckey).add_value_node())
+            .unwrap_or_else(|| unreachable!("p, q are 1d"));
+        match result {
+            wire::AddWireResult::NoJoin(_) => {},
+            wire::AddWireResult::Join(c, k1, k2) => {
+                self.forest.circuit(ckey).join(&[k1, k2]);
+                self.physical[ckey].wires.flood_fill(c, k1);
+            },
+        }
+
+        Ok(())
     }
-    pub fn remove_wire(&mut self, w: Wire) -> Result<(), ReprEditErr> {
-        todo!()
-    }    
+    pub fn remove_wire(&mut self, ckey: CircuitKey, w: Wire) -> Result<(), ReprEditErr> {
+        let [p, q] = w.endpoints();
+
+        match self.physical[ckey].wires.remove_wire(p, q) {
+            Some(wire::RemoveWireResult::NoSplit(_)) => Ok(()),
+            Some(wire::RemoveWireResult::Split(c, k, coords)) => {
+                let nk = self.forest.circuit(ckey).split(k, &[ todo!("get ports connected to mesh") ]);
+                self.physical[ckey].wires.flood_fill(c, nk);
+                Ok(())
+            },
+            None => Err(ReprEditErr::CannotRemoveWire),
+        }
+    }
 }
