@@ -197,7 +197,6 @@ impl Circuit<'_> {
 
     /// Joins a set of value nodes into one.
     pub fn join(&mut self, keys: &[ValueKey]) {
-        // TODO: test cases
         if let Some((&main, to_merge)) = keys.split_first() {
             circ!(self.graphs).join(main, to_merge);
             // Remove all invalidated nodes
@@ -243,6 +242,8 @@ impl Circuit<'_> {
 mod tests {
     use crate::bitarr;
     use crate::circuit::CircuitForest;
+    use crate::circuit::graph::FunctionPort;
+    use crate::func::{And, Not, ComponentFn};
 
     #[test]
     fn test_replace() {
@@ -258,5 +259,63 @@ mod tests {
         // intentionally wrong bitsize should fail
         let wrong_value = bitarr![0; 16]; // 16 bits instead of 8
         assert!(circuit.replace_value(key, wrong_value).is_err());
+    }
+    #[test]
+    fn test_join() {
+        let mut forest = CircuitForest::new();
+        let mut circuit = forest.new_circuit();
+
+        let value1 = circuit.add_value_node();
+        let value2 = circuit.add_value_node();
+
+        let and =  ComponentFn::And(And::new(8, 2));
+        let not= ComponentFn::Not(Not::new(8));
+
+        let func1 = circuit.add_function_node(and);
+        let func2 = circuit.add_function_node(not);
+
+        // Connect value1 to func1, value2 to func2
+        circuit.connect_one(value1, FunctionPort { gate: func1, index: 0 });
+        circuit.connect_one(value2, FunctionPort { gate: func2, index: 0 });
+
+        // Join value2 into value1
+        circuit.join(&[value1, value2]);
+
+        assert_eq!(circuit.forest.graphs[circuit.key].values[value1].links.len(), 2);
+        assert!(!circuit.state().values.contains_key(value2));
+        assert!(circuit.state().values.contains_key(value1));
+
+        // Verify transients
+        assert!(circuit.state().transient.triggers.contains_key(value1));
+    }
+    #[test]
+    fn test_split_off() {
+        let mut forest = CircuitForest::new();
+        let mut circuit = forest.new_circuit();
+
+        let value1 = circuit.add_value_node();
+
+        let and =  ComponentFn::And(And::new(8, 2));
+        let not= ComponentFn::Not(Not::new(8));
+
+        let func1 = circuit.add_function_node(and);
+        let func2 = circuit.add_function_node(not);
+
+        circuit.connect_one(value1, FunctionPort { gate: func1, index: 0 });
+        circuit.connect_one(value1, FunctionPort { gate: func2, index: 0 });
+
+        // Split off func2 from value1
+        let value2 = circuit.split(value1, &[FunctionPort { gate: func2, index: 0 }]);
+
+        // Verify graphs and state
+        assert_eq!(circuit.forest.graphs[circuit.key].values[value1].links.len(), 1);
+        assert_eq!(circuit.forest.graphs[circuit.key].values[value2].links.len(), 1);
+
+        assert!(circuit.state().values.contains_key(value1));
+        assert!(circuit.state().values.contains_key(value2));
+
+        // Verify transients
+        assert!(circuit.state().transient.triggers.contains_key(value1));
+        assert!(circuit.state().transient.triggers.contains_key(value2));
     }
 }
