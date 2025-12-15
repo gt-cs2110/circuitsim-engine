@@ -133,7 +133,7 @@ pub enum ComponentFn {
     // Muxes
     Mux, Demux, Decoder,
     // Memory
-    Register, Rom,
+    Register, Rom, Ram, 
     // Misc
     Subcircuit
 }
