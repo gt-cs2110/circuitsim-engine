@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::bitarr;
 use crate::bitarray::{BitArray, BitState};
 use crate::circuit::CircuitGraphMap;
@@ -39,4 +41,79 @@ impl Component for Register {
             vec![]
         }
     }
+}
+
+/// A ROM component
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub struct Rom {
+    bitsize: u8,
+    addrsize: u8,
+    mem: Vec<u64>    
+}
+
+impl Rom {
+    /// Creates a new instance of ROM 
+    /// 
+    /// The initial contents, `mem` will be resized to 2^addrsize padded with 0s if necessary
+    pub fn new(bitsize: u8, addrsize: u8, mem: Vec<u64>) -> Self {
+        let addrsize = addrsize.clamp(1, 20); // This is CircuitSim's current limit, but we could change it
+        let bitsize = bitsize.clamp(BitArray::MIN_BITSIZE,BitArray::MAX_BITSIZE);
+
+        let mut memory = mem;
+        memory.resize(1 << addrsize, 0); // clamp mem size/contents
+
+        Self {
+            bitsize,
+            addrsize,
+            mem: memory
+        }
+    }
+}
+
+impl Component for Rom {
+    fn ports(&self, graphs: &CircuitGraphMap) -> Vec<PortProperties> {
+        port_list(
+            &[
+                // Address in
+                (PortProperties {ty: PortType::Input, bitsize: self.addrsize}, 1), 
+                // Enable
+                (PortProperties {ty: PortType::Input, bitsize: 1}, 1), 
+                // Data out
+                (PortProperties {ty: PortType::Output, bitsize: self.bitsize}, 1) 
+            ]
+        )
+    }
+
+    fn run_inner(&self,ctx:RunContext<'_>) -> Vec<PortUpdate> {
+        // Check whether ROM is enabled first
+        let enable = ctx.new_ports[1].index(0); 
+        if enable == BitState::High {
+            return vec![PortUpdate {
+                index: 2,
+                value: bitarr![Z; self.bitsize]
+            }];
+        }
+
+        let try_addr = u64::try_from(ctx.new_ports[0]);
+
+        let output = match try_addr {
+            Ok(addr) if addr < (self.mem.len() as u64) => { // Assert that address is within the bounds of this ROM
+                BitArray::from_bits(self.mem[addr as usize], self.bitsize)
+            },
+            Ok(addr) => {
+                // Not floating but not in bounds either
+                bitarr![0; self.bitsize]; 
+                // Return 0s 
+                // TODO: maybe change this into float/unk or a real assertion
+            },
+            Err(e) => {
+                BitArray::repeat(e.bit_state(), self.bitsize) // just spit the bits back out the other end
+            }
+
+        };
+
+        vec![PortUpdate { index: 2, value: output }]
+    }
+
 }
