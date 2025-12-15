@@ -7,7 +7,7 @@ use slotmap::{SecondaryMap, SlotMap, new_key_type};
 
 use crate::bitarray::BitArray;
 use crate::circuit::graph::{CircuitGraph, FunctionKey, FunctionNode, FunctionPort, ValueKey};
-use crate::circuit::state::{CircuitState, TriggerState};
+use crate::circuit::state::{CircuitState, TriggerState, InnerFunctionState};
 use crate::func::ComponentFn;
 
 new_key_type! {
@@ -204,6 +204,50 @@ impl Circuit<'_> {
     pub(crate) fn get_output(&mut self, key: FunctionKey) -> BitArray {
         assert!(matches!(self.forest.graphs[self.key].functions[key].func, ComponentFn::Output(_)), "Expected output function");
         self.forest.states[self.key].get_port_value(FunctionPort { gate: key, index: 0 })
+    }
+
+    // Loads data into a ROM component from a vector.
+    /// 
+    /// The ROM must have been created with `Rom::new()` and added to the circuit.
+    /// Data is copied up to the ROM's capacity
+    /// Intended for use when loading ROM contents from file
+    pub fn write_rom_contents(&mut self, rom_key: FunctionKey, data: &[u64]) -> Result<(), &'static str> {
+        if !matches!(self.forest.graphs[self.key][rom_key].func, ComponentFn::Rom(_)) {
+            return Err("Function node is not a ROM");
+        }
+
+        // Get inner state
+        let Some(InnerFunctionState::Rom(ref mut mem)) = self.forest.states[self.key][rom_key].inner else {
+            return Err("ROM has no inner state");
+        };
+
+
+        for (dest, &src) in mem.iter_mut().zip(data.iter()) {
+            *dest = src;
+        }
+
+        Ok(())
+    }
+
+    /// Sets a single word in a ROM.
+    /// 
+    /// Returns an error if the address is out of bounds or the node is not a ROM.
+    pub fn set_rom_word(&mut self, rom_key: FunctionKey, addr: usize, value: u64) -> Result<(), &'static str> {
+        if !matches!(self.forest.graphs[self.key][rom_key].func, ComponentFn::Rom(_)) {
+            return Err("Function node is not a ROM");
+        }
+
+        // Get inner state
+        let Some(InnerFunctionState::Rom(ref mut mem)) = self.forest.states[self.key][rom_key].inner else {
+            return Err("ROM has no inner state");
+        };
+
+        if addr >= mem.len() {
+            return Err("Address out of bounds");
+        }
+
+        mem[addr] = value;
+        Ok(())
     }
 }
 

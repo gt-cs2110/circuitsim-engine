@@ -3,6 +3,7 @@ use std::vec;
 use crate::bitarr;
 use crate::bitarray::{BitArray, BitState};
 use crate::circuit::CircuitGraphMap;
+use crate::circuit::state::InnerFunctionState;
 use crate::func::{Component, PortProperties, PortType, PortUpdate, RunContext, Sensitivity, port_list};
 
 /// A register component.
@@ -45,11 +46,10 @@ impl Component for Register {
 
 /// A ROM component
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Rom {
     bitsize: u8,
-    addrsize: u8,
-    mem: Vec<u64>    
+    addrsize: u8 
 }
 
 impl Rom {
@@ -65,14 +65,13 @@ impl Rom {
 
         Self {
             bitsize,
-            addrsize,
-            mem: memory
+            addrsize
         }
     }
 }
 
 impl Component for Rom {
-    fn ports(&self, graphs: &CircuitGraphMap) -> Vec<PortProperties> {
+    fn ports(&self, _graphs: &CircuitGraphMap) -> Vec<PortProperties> {
         port_list(
             &[
                 // Address in
@@ -85,6 +84,11 @@ impl Component for Rom {
         )
     }
 
+    fn initialize_inner_state(&self,_graphs: &CircuitGraphMap) -> Option<crate::circuit::state::InnerFunctionState> {
+        let size = 1 << self.addrsize;
+        Some(InnerFunctionState::Rom(vec![0u64; size]))
+    }
+
     fn run_inner(&self,ctx:RunContext<'_>) -> Vec<PortUpdate> {
         // Check whether ROM is enabled first
         let enable = ctx.new_ports[1].index(0); 
@@ -95,15 +99,20 @@ impl Component for Rom {
             }];
         }
 
+         let Some(InnerFunctionState::Rom(mem)) = ctx.inner_state else {
+            unreachable!("ROM's inner state was not a Vec<u64>");
+            // TODO: I asked chat about what to put here ^ but idk if this is right i think its right
+        };
+
         let try_addr = u64::try_from(ctx.new_ports[0]);
 
         let output = match try_addr {
-            Ok(addr) if addr < (self.mem.len() as u64) => { // Assert that address is within the bounds of this ROM
-                BitArray::from_bits(self.mem[addr as usize], self.bitsize)
+            Ok(addr) if addr < (mem.len() as u64) => { // Assert that address is within the bounds of this ROM
+                BitArray::from_bits(mem[addr as usize], self.bitsize)
             },
-            Ok(addr) => {
-                // Not floating but not in bounds either
-                bitarr![0; self.bitsize]; 
+            Ok(_addr) => {
+                // not floating but not in bounds either
+                bitarr![0; self.bitsize]
                 // Return 0s 
                 // TODO: maybe change this into float/unk or a real assertion
             },
