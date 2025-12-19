@@ -66,14 +66,20 @@ impl CircuitState {
     }
 
     /// Gets the bit value of a [`ValueNode`].
+    /// 
+    /// [`ValueNode`]: crate::circuit::graph::ValueNode
     pub fn get_node_value(&self, k: ValueKey) -> BitArray {
         self[k].get_value()
     }
     /// Gets the bit value of a port attached to a [`FunctionNode`].
+    /// 
+    /// [`FunctionNode`]: crate::circuit::graph::FunctionNode
     pub fn get_port_value(&self, p: FunctionPort) -> BitArray {
         self[p.gate].get_port(p.index)
     }
     /// Gets all issues associated with a given [`ValueNode`].
+    /// 
+    /// [`ValueNode`]: crate::circuit::graph::ValueNode
     pub fn get_issues(&self, k: ValueKey) -> &HashSet<ValueIssue> {
         &self[k].issues
     }
@@ -84,6 +90,14 @@ impl CircuitState {
     pub fn remove_node_value(&mut self, k: ValueKey) {
         self.values.remove(k);
         self.transient.triggers.remove(k);
+    }
+    /// Removes a value node from CircuitState.
+    /// 
+    /// If this function is called, then `CircuitState::get_node_value`
+    /// should NOT be called on this ValueKey.
+    pub fn remove_function_value(&mut self, k: FunctionKey) {
+        self.functions.remove(k);
+        self.transient.frontier.remove(&k);
     }
     /// Signals that an update should be propagated from a value node.
     /// 

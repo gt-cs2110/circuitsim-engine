@@ -75,7 +75,8 @@ pub enum ValueIssue {
     OscillationDetected
 }
 
-/// A circuit, which includes its structure ([`CircuitGraph`]) and its state ([`CircuitState`]).
+/// A mutable view of a circuit, 
+/// which includes its structure ([`CircuitGraph`]) and its state ([`CircuitState`]).
 #[derive(Debug)]
 pub struct Circuit<'a> {
     forest: &'a mut CircuitForest,
@@ -131,6 +132,38 @@ impl Circuit<'_> {
         key
     }
 
+    /// Removes a value node and any state linking to it.
+    pub fn remove_value_node(&mut self, value: ValueKey) -> bool {
+        if let Some(vnode) = circ!(self.graphs).values.get(value) {
+            // Update transient state:
+            circ!(self.states).transient.frontier.extend(vnode.links.iter().map(|l| l.gate));
+            
+            circ!(self.graphs).remove_value(value);
+            circ!(self.states).remove_node_value(value);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Removes a value node and any state linking to it.
+    pub fn remove_function_node(&mut self, gate: FunctionKey) -> bool {
+        if let Some(fnode) = circ!(self.graphs).functions.get(gate) {
+            // Update transient state:
+            for &ml in &fnode.links {
+                if let Some(l) = ml {
+                    circ!(self.states).add_transient(l, true);
+                }
+            }
+            
+            circ!(self.graphs).remove_function(gate);
+            circ!(self.states).remove_function_value(gate);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Connect a wire to a port in the Circuit's graph.
     pub fn connect_one(&mut self, wire: ValueKey, port: FunctionPort) {
         circ!(self.graphs).connect(wire, port);
@@ -177,6 +210,8 @@ impl Circuit<'_> {
     /// Updates a [`ValueNode`] with the specified value, raising `Err` if bitsizes do not match.
     /// 
     /// If [`Circuit::propagate`] is called after this, the update propagates to the rest of the graph.
+    /// 
+    /// [`ValueNode`]: crate::circuit::graph::ValueNode
     pub fn replace_value(&mut self, key: ValueKey, val: BitArray) -> Result<(), crate::bitarray::MismatchedBitsizes> {
         circ!(self.states)[key].replace_value(val)?;
 
