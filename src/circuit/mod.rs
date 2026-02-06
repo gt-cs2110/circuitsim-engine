@@ -7,7 +7,7 @@ use slotmap::{SecondaryMap, SlotMap, new_key_type};
 
 use crate::bitarray::BitArray;
 use crate::circuit::graph::{CircuitGraph, FunctionKey, FunctionNode, FunctionPort, ValueKey};
-use crate::circuit::state::{CircuitState, TriggerState};
+use crate::circuit::state::{CircuitState, TriggerState, InnerFunctionState};
 use crate::func::ComponentFn;
 
 new_key_type! {
@@ -204,6 +204,51 @@ impl Circuit<'_> {
     pub(crate) fn get_output(&mut self, key: FunctionKey) -> BitArray {
         assert!(matches!(self.forest.graphs[self.key].functions[key].func, ComponentFn::Output(_)), "Expected output function");
         self.forest.states[self.key].get_port_value(FunctionPort { gate: key, index: 0 })
+    }
+
+    // Loads data into a ROM/RAM component from a vector.
+    /// 
+    /// The ROM/RAM must have been created with `Rom::new()` or `Ram::new()` and added to the circuit.
+    /// Data is copied up to capacity of this ROM/RAM
+    /// Intended for use when loading contents from file
+    pub fn write_memory_contents(&mut self, memory_key: FunctionKey, data: &[u64]) -> Result<(), &'static str> {
+        if !matches!(self.forest.graphs[self.key][memory_key].func, ComponentFn::Rom(_) | ComponentFn::Ram(_)) {
+            return Err("Function node is not a memory component");
+        }
+
+        // Get inner state
+        let Some(InnerFunctionState::Memory(ref mut mem)) = self.forest.states[self.key][memory_key].inner else {
+            return Err("Memory component has no inner state");
+        };
+
+
+        for (dest, &src) in mem.iter_mut().zip(data.iter()) {
+            *dest = src;
+        }
+
+        Ok(())
+    }
+
+    /// Sets a single word in a ROM/RAM.
+    /// 
+    /// Returns an error if the address is out of bounds or the node is not a ROM/RAM.
+    /// Intended for use with the 'edit contents' menu, for editing single words
+    pub fn set_memory_word(&mut self, memory_key: FunctionKey, addr: usize, value: u64) -> Result<(), &'static str> {
+        if !matches!(self.forest.graphs[self.key][memory_key].func, ComponentFn::Rom(_) | ComponentFn::Ram(_)) {
+            return Err("Function node is not a memory component");
+        }
+
+        // Get inner state
+        let Some(InnerFunctionState::Memory(ref mut mem)) = self.forest.states[self.key][memory_key].inner else {
+            return Err("Memory component has no inner state");
+        };
+
+        if addr >= mem.len() {
+            return Err("Address out of bounds");
+        }
+
+        mem[addr] = value;
+        Ok(())
     }
 }
 

@@ -274,6 +274,8 @@ impl ValueState {
 pub enum InnerFunctionState {
     /// Subcircuit data.
     Subcircuit(CircuitState),
+    /// ROM/RAM data.
+    Memory (Vec<u64>),
 }
 
 
